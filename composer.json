@@ -1,0 +1,23 @@
+{
+    "name": "podvoyskiy/telegram",
+    "description": "telegram bot api",
+    "type": "library",
+    "license": "Apache-2.0",
+    "autoload": {
+        "psr-4": {
+            "Podvoyskiy\\Telegram\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "podvoyskiy",
+            "email": "ilya.podvoyskiy@gmail.com"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {
+        "php": ">=8.0",
+        "ext-curl": "*",
+        "ext-json": "*"
+    }
+}

@@ -9,6 +9,7 @@ class BaseTelegram
     private const URI = 'https://api.telegram.org/bot%s/%s';
 
     private const METHOD_SEND_MESSAGE = 'sendMessage';
+    private const METHOD_SEND_DOCUMENT = 'sendDocument';
     private const METHOD_GET_ME = 'getMe';
 
     /**
@@ -50,10 +51,28 @@ class BaseTelegram
         foreach ($subscribers as $subscriber) {
             $chatId = self::$instance->chatsIds[$subscriber] ?? null;
             if (!$chatId) continue;
-            self::_request(self::METHOD_SEND_MESSAGE, ['chat_id' => $chatId, 'text' => __DIR__ . "\n$message"]);
+            $response = self::_request(self::METHOD_SEND_MESSAGE, ['chat_id' => $chatId, 'text' => __DIR__ . "\n$message"]);
+            if ($response['ok'] === false && str_contains($response['description'], 'message is too long')) self::_sendDocument($chatId, $message);
         }
 
         if (static::TTL > 0) apcu_add('telegram_' . sha1($message), 1, static::TTL);
+    }
+
+
+    private static function _sendDocument(string|int $chatId, string $message): void
+    {
+        $tmp = tmpfile();
+        $tmpPath = stream_get_meta_data($tmp)['uri'];
+        file_put_contents($tmpPath, $message);
+        $curlFile = curl_file_create($tmpPath, 'text/plain', time() . '.txt');
+
+        $params = [
+            'chat_id' => $chatId,
+            'caption' => __DIR__,
+            'document' => $curlFile
+        ];
+        self::_request(self::METHOD_SEND_DOCUMENT, $params);
+        fclose($tmp);
     }
 
     private static function _request(string $method, ?array $params = null)
@@ -66,7 +85,7 @@ class BaseTelegram
             CURLOPT_POST => 1,
             CURLOPT_RETURNTRANSFER => 1,
         ]);
-        if ($params) curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($params));
+        if ($params) curl_setopt($curl, CURLOPT_POSTFIELDS, $params);
 
         $response = curl_exec($curl);
         curl_close($curl);

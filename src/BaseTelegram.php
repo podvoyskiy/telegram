@@ -13,11 +13,6 @@ class BaseTelegram
     private const METHOD_GET_ME = 'getMe';
 
     /**
-     * @desc override if you need a limit on same messages (in sec.)
-     */
-    protected const TTL = 0;
-
-    /**
      * @desc need override
      */
     protected const TOKEN = '';
@@ -26,6 +21,16 @@ class BaseTelegram
      * @desc need override
      */
     protected array $chatsIds = [];
+
+    /**
+     * @desc override if you need a limit on same messages (in sec.)
+     */
+    protected const TTL = 0;
+
+    /**
+     * @desc set to empty if you want to always send messages
+     */
+    protected const WORKING_HOURS_RANGE = [9, 18];
 
     private static ?BaseTelegram $instance = null; //singleton
 
@@ -43,6 +48,8 @@ class BaseTelegram
     public static function send(string|array $subscribers, string $message): void
     {
         if (self::$instance === null) self::$instance = new static();
+
+        if (!empty(static::WORKING_HOURS_RANGE) && (date('G') < static::WORKING_HOURS_RANGE[0] || date('G') > static::WORKING_HOURS_RANGE[1])) return;
 
         if (static::TTL > 0 && apcu_exists('telegram_' . sha1($message))) return; //the same message has already been sent
 
@@ -99,6 +106,11 @@ class BaseTelegram
         if (empty(self::_request(self::METHOD_GET_ME)['ok'])) throw new Exception('invalid token telegram');
 
         if (empty($this->chatsIds)) throw new Exception('list subscribers is empty');
+
+        if (!in_array(count(static::WORKING_HOURS_RANGE), [0, 2])
+            || count(array_filter(static::WORKING_HOURS_RANGE, 'is_int')) !== count(static::WORKING_HOURS_RANGE)) {
+            throw new Exception('incorrect const WORKING_HOURS_RANGE');
+        }
 
         if (static::TTL > 0 && (!function_exists('apcu_enabled') || apcu_enabled() === false)) {
             throw new Exception('apcu extension not supported');

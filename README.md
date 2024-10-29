@@ -23,6 +23,9 @@ class Telegram extends BaseTelegram
     
     //if you need a limit on same messages (for example 30 min). required apcu extension
     //protected const TTL = 30 * 60; 
+    
+    //set to empty if you want to always send messages. default [9, 18]
+    //protected const WORKING_HOURS_RANGE = [];
 }
 
 Telegram::send(Telegram::EXAMPLE_SUBSCRIBER, 'Hello world');

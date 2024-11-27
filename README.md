@@ -28,5 +28,7 @@ class Telegram extends BaseTelegram
     //protected const WORKING_HOURS_RANGE = [];
 }
 
-Telegram::send(Telegram::EXAMPLE_SUBSCRIBER, 'Hello world');
+Telegram::sendMessage(Telegram::EXAMPLE_SUBSCRIBER, 'Hello world');
+
+Telegram::sendDocument(Telegram::EXAMPLE_SUBSCRIBER, $pathToFile);
  ```

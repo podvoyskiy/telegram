@@ -45,41 +45,42 @@ class BaseTelegram
     /**
      * @throws Exception
      */
-    public static function send(string|array $subscribers, string $message): void
+    public static function sendMessage(string|array $subscribers, string $message): void
     {
-        if (self::$instance === null) self::$instance = new static();
-
-        if (!empty(static::WORKING_HOURS_RANGE) && (date('G') < static::WORKING_HOURS_RANGE[0] || date('G') > static::WORKING_HOURS_RANGE[1])) return;
-
+        if (!self::_init()) return;
         if (static::TTL > 0 && apcu_exists('telegram_' . sha1($message))) return; //the same message has already been sent
 
-        if (!is_array($subscribers)) $subscribers = [$subscribers];
+        if (strlen($message) > 4096) {
+            self::sendDocument($subscribers, self::_messageToFile($message), true);
+            return;
+        }
 
+        if (!is_array($subscribers)) $subscribers = [$subscribers];
         foreach ($subscribers as $subscriber) {
             $chatId = self::$instance->chatsIds[$subscriber] ?? null;
             if (!$chatId) continue;
-            $response = self::_request(self::METHOD_SEND_MESSAGE, ['chat_id' => $chatId, 'text' => __DIR__ . "\n$message"]);
-            if ($response['ok'] === false && str_contains($response['description'], 'message is too long')) self::_sendDocument($chatId, $message);
+            self::_request(self::METHOD_SEND_MESSAGE, ['chat_id' => $chatId, 'text' => __DIR__ . "\n$message"]);
         }
 
         if (static::TTL > 0) apcu_add('telegram_' . sha1($message), 1, static::TTL);
     }
 
-
-    private static function _sendDocument(string|int $chatId, string $message): void
+    /**
+     * @throws Exception
+     */
+    public static function sendDocument(string|array $subscribers, string $pathToFile, bool $deleteFileAfterSend = false): void
     {
-        $tmp = tmpfile();
-        $tmpPath = stream_get_meta_data($tmp)['uri'];
-        file_put_contents($tmpPath, $message);
-        $curlFile = curl_file_create($tmpPath, 'text/plain', time() . '.txt');
+        if (!is_file($pathToFile) || !self::_init()) return;
+        $curlFile = curl_file_create($pathToFile, mime_content_type($pathToFile), basename($pathToFile));
 
-        $params = [
-            'chat_id' => $chatId,
-            'caption' => __DIR__,
-            'document' => $curlFile
-        ];
-        self::_request(self::METHOD_SEND_DOCUMENT, $params);
-        fclose($tmp);
+        if (!is_array($subscribers)) $subscribers = [$subscribers];
+        foreach ($subscribers as $subscriber) {
+            $chatId = self::$instance->chatsIds[$subscriber] ?? null;
+            if (!$chatId) continue;
+            self::_request(self::METHOD_SEND_DOCUMENT, ['chat_id' => $chatId, 'caption' => __DIR__, 'document' => $curlFile]);
+        }
+
+        if ($deleteFileAfterSend) unlink($pathToFile);
     }
 
     private static function _request(string $method, ?array $params = null)
@@ -99,6 +100,23 @@ class BaseTelegram
         return json_decode($response, true);
     }
 
+    private static function _messageToFile(string $message): string
+    {
+        $pathToFile = tempnam(sys_get_temp_dir(), 'tmp_telegram_file_');
+        file_put_contents($pathToFile, $message);
+        return $pathToFile;
+    }
+
+    private static function _init(): bool
+    {
+        if (self::$instance === null) self::$instance = new static();
+        if (!empty(static::WORKING_HOURS_RANGE) && (date('G') < static::WORKING_HOURS_RANGE[0] || date('G') > static::WORKING_HOURS_RANGE[1])) return false;
+        return true;
+    }
+
+    /**
+     * @throws Exception
+     */
     private function _checkSettings(): void
     {
         if (!preg_match('/^\d+:\w+$/', static::TOKEN)) throw new Exception('incorrect token telegram');
